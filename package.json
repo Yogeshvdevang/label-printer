@@ -1,0 +1,25 @@
+{
+  "name": "label-printer",
+  "version": "0.1.0",
+  "description": "Label designer and print automation app for the 4BARCODE 4B-2034PA thermal label printer",
+  "main": "out/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "electron": "^33.2.1",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "bwip-js": "^4.5.1",
+    "fabric": "^7.4.0",
+    "zod": "^3.24.1"
+  }
+}

@@ -1,0 +1,421 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Label Printer</title>
+    <style>
+      :root {
+        --purple: #7c3aed;
+        --purple-dark: #6d28d9;
+        --pink: #ec4899;
+        --teal: #14b8a6;
+        --blue: #3b82f6;
+        --orange: #f59e0b;
+        --indigo: #6366f1;
+        --rose: #f43f5e;
+        --green: #22c55e;
+        --green-dark: #16a34a;
+        --ink: #1f2033;
+        --bg: #f6f5fb;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: 'Segoe UI', 'Poppins', system-ui, sans-serif;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--ink);
+      }
+
+      button {
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 600;
+        border-radius: 999px;
+        padding: 0.5rem 1.05rem;
+        font-size: 0.82rem;
+        color: white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+        white-space: nowrap;
+      }
+      button:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 4px 12px rgba(0,0,0,0.22); }
+      button:active { transform: translateY(0); }
+
+      .btn-white { background: white; color: var(--purple-dark); }
+      .btn-teal { background: linear-gradient(135deg, #2dd4bf, var(--teal)); }
+      .btn-blue { background: linear-gradient(135deg, #60a5fa, var(--blue)); }
+      .btn-orange { background: linear-gradient(135deg, #fbbf24, var(--orange)); }
+      .btn-pink { background: linear-gradient(135deg, #f472b6, var(--pink)); }
+      .btn-indigo { background: linear-gradient(135deg, #818cf8, var(--indigo)); }
+      .btn-rose { background: linear-gradient(135deg, #fb7185, var(--rose)); }
+      .btn-green { background: linear-gradient(135deg, #4ade80, var(--green-dark)); }
+      .btn-small { padding: 0.3rem 0.7rem; font-size: 0.72rem; }
+
+      #toolbar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.7rem 1rem;
+        flex-wrap: wrap;
+        background: linear-gradient(120deg, var(--purple), var(--pink));
+      }
+      #toolbar select {
+        border-radius: 999px;
+        border: none;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--purple-dark);
+      }
+      .spacer { flex: 1; }
+      .divider { width: 1px; height: 1.6rem; background: rgba(255,255,255,0.4); margin: 0 0.35rem; }
+      .toolbar-label { color: white; font-size: 0.78rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
+
+      #body { display: flex; flex: 1; overflow: hidden; }
+
+      #pageSidebar {
+        width: 190px;
+        overflow-y: auto;
+        padding: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+        background: white;
+        border-right: 1px solid #ece9f7;
+      }
+      .pageThumb {
+        border: 2px solid #ece9f7;
+        border-radius: 14px;
+        padding: 0.5rem;
+        cursor: pointer;
+        font-size: 0.72rem;
+        text-align: center;
+        background: #fbfaff;
+        transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+      }
+      .pageThumb:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(124,58,237,0.15); }
+      .pageThumb.active { border-color: var(--purple); background: #f3edff; box-shadow: 0 4px 10px rgba(124,58,237,0.25); }
+      .pageThumb canvas { max-width: 100%; border-radius: 6px; border: 1px solid #eee; margin-bottom: 0.3rem; }
+      .pageThumb .pageLabel { font-weight: 600; color: var(--ink); margin-bottom: 0.35rem; }
+
+      #layersPanel {
+        width: 220px;
+        overflow-y: auto;
+        padding: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        background: white;
+        border-left: 1px solid #ece9f7;
+      }
+      #layersPanel h4 {
+        margin: 0 0 0.2rem 0;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #9b96b8;
+      }
+      .layerRow {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.55rem;
+        border-radius: 10px;
+        background: #fbfaff;
+        border: 1.5px solid #ece9f7;
+        cursor: pointer;
+        font-size: 0.75rem;
+      }
+      .layerRow.active { border-color: var(--indigo); background: #eef0ff; }
+      .layerRow .layerName { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+      .layerRow .layerIcon { font-size: 0.9rem; }
+      .layerRow button {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.65rem;
+        border-radius: 6px;
+        box-shadow: none;
+        color: #6b6880;
+        background: #eeecf7;
+      }
+      .layerRow button:hover { transform: none; filter: none; background: #e0defa; }
+
+      #canvasArea {
+        flex: 1;
+        overflow: auto;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 2.5rem;
+        background: radial-gradient(circle at top left, #ede9fe, #fdf2f8 60%, #f6f5fb);
+      }
+      #rulerGrid {
+        display: grid;
+        grid-template-columns: 22px auto;
+        grid-template-rows: 22px auto;
+        gap: 10px;
+      }
+      #rulerCorner {
+        grid-column: 1; grid-row: 1;
+        background: transparent;
+      }
+      #topRuler {
+        grid-column: 2; grid-row: 1;
+        background: white;
+        border: 1px solid #e3e0f5;
+        border-radius: 6px;
+        cursor: ns-resize;
+      }
+      #leftRuler {
+        grid-column: 1; grid-row: 2;
+        background: white;
+        border: 1px solid #e3e0f5;
+        border-radius: 6px;
+        cursor: ew-resize;
+      }
+      #canvasWrap {
+        grid-column: 2; grid-row: 2;
+        background: white;
+        box-shadow: 0 12px 32px rgba(124,58,237,0.18);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      #rulerGrid.rulers-hidden {
+        grid-template-columns: 0 auto;
+        grid-template-rows: 0 auto;
+        gap: 0;
+      }
+      #rulerGrid.rulers-hidden #rulerCorner,
+      #rulerGrid.rulers-hidden #topRuler,
+      #rulerGrid.rulers-hidden #leftRuler {
+        display: none;
+      }
+      #rulerGrid.rulers-hidden #canvasWrap {
+        border-radius: 10px;
+      }
+
+      #status {
+        padding: 0.4rem 1rem;
+        font-family: 'Cascadia Code', monospace;
+        font-size: 0.78rem;
+        color: #6b6880;
+        background: white;
+        border-top: 1px solid #ece9f7;
+        min-height: 1.5rem;
+        white-space: pre-wrap;
+      }
+
+      .modal-backdrop {
+        position: fixed; inset: 0; background: rgba(31,32,51,0.45);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 10;
+        backdrop-filter: blur(2px);
+      }
+      .modal-backdrop.hidden { display: none; }
+      .modal {
+        background: white; padding: 1.75rem; border-radius: 18px;
+        width: 380px; display: flex; flex-direction: column; gap: 1rem;
+        box-shadow: 0 20px 50px rgba(31,32,51,0.35);
+      }
+      .modal h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        background: linear-gradient(120deg, var(--purple), var(--pink));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .modal label { font-size: 0.82rem; font-weight: 600; color: #4b4864; display: flex; flex-direction: column; gap: 0.3rem; }
+      .modal input, .modal select {
+        padding: 0.55rem 0.7rem; font-size: 0.9rem; border-radius: 10px;
+        border: 1.5px solid #e3e0f5; font-family: inherit;
+      }
+      .modal input:focus, .modal select:focus { outline: none; border-color: var(--purple); }
+      .modal .actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.3rem; }
+      .fileRow {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0.5rem 0.7rem; border-radius: 10px; border: 1.5px solid #e3e0f5;
+        cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--ink);
+      }
+      .fileRow:hover { border-color: var(--purple); background: #f8f6ff; }
+      .fileRow button { padding: 0.2rem 0.6rem; font-size: 0.68rem; }
+      .emptyNote { font-size: 0.82rem; color: #9b96b8; text-align: center; padding: 1rem 0; }
+
+      #contextMenu {
+        position: fixed;
+        z-index: 20;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 12px 32px rgba(31,32,51,0.28);
+        padding: 0.4rem;
+        min-width: 190px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+      }
+      #contextMenu.hidden { display: none; }
+      #contextMenu button {
+        all: unset;
+        cursor: pointer;
+        padding: 0.5rem 0.7rem;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      #contextMenu button:hover { background: #f3edff; color: var(--purple-dark); }
+      #contextMenu button.danger:hover { background: #fee2e2; color: var(--rose); }
+      #contextMenu hr { border: none; border-top: 1px solid #ece9f7; margin: 0.25rem 0.2rem; }
+    </style>
+  </head>
+  <body>
+    <div id="toolbar">
+      <button id="newPageBtn" class="btn-white">+ New Page</button>
+      <div class="divider"></div>
+      <button id="addTextBtn" class="btn-teal">Text</button>
+      <button id="addRectBtn" class="btn-blue">Rect</button>
+      <button id="addLineBtn" class="btn-blue">Line</button>
+      <button id="addBarcodeBtn" class="btn-indigo">Barcode</button>
+      <button id="addQrBtn" class="btn-indigo">QR Code</button>
+      <button id="addImageBtn" class="btn-indigo">Image</button>
+      <input id="imageFileInput" type="file" accept="image/*" style="display:none;" />
+      <button id="addHGuideBtn" class="btn-teal btn-small">↔ H Ruler</button>
+      <button id="addVGuideBtn" class="btn-teal btn-small">↕ V Ruler</button>
+      <button id="toggleRulerBtn" class="btn-teal btn-small">📐 Hide Ruler</button>
+      <button id="deleteSelectedBtn" class="btn-rose">Delete</button>
+      <div class="divider"></div>
+      <button id="saveDocBtn" class="btn-orange">Save</button>
+      <button id="loadDocBtn" class="btn-orange">Load</button>
+      <div class="spacer"></div>
+      <span class="toolbar-label">Printer
+        <select id="printerSelect"></select>
+      </span>
+      <button id="refreshPrintersBtn" class="btn-white btn-small">Refresh</button>
+      <button id="printPageBtn" class="btn-green">🖨 Print Page</button>
+      <button id="printAllBtn" class="btn-green">🖨 Print All</button>
+    </div>
+
+    <div id="body">
+      <div id="pageSidebar"></div>
+      <div id="canvasArea">
+        <div id="rulerGrid">
+          <div id="rulerCorner"></div>
+          <canvas id="topRuler"></canvas>
+          <canvas id="leftRuler"></canvas>
+          <div id="canvasWrap">
+            <canvas id="fabricCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+      <div id="layersPanel">
+        <h4>Layers</h4>
+        <div id="layerList"></div>
+      </div>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="newPageModal" class="modal-backdrop hidden">
+      <div class="modal">
+        <h3 id="newPageModalTitle">New Page</h3>
+        <label>
+          Paper type (sets the default width — adjust it below if needed)
+          <select id="presetSelect"></select>
+        </label>
+        <label>
+          Width (mm) — defaults to the roll width; the confirmed printable
+          area on the 76mm roll is ~72mm, so use 72 to avoid clipping
+          <input id="widthInput" type="number" min="5" step="1" />
+        </label>
+        <label>
+          Height (mm) — length of this page
+          <input id="heightInput" type="number" min="5" step="1" />
+        </label>
+        <div class="actions">
+          <button id="cancelNewPageBtn" class="btn-white" style="color:#6b6880;">Cancel</button>
+          <button id="createPageBtn" class="btn-pink">Create</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="barcodeModal" class="modal-backdrop hidden">
+      <div class="modal">
+        <h3>Insert Barcode</h3>
+        <label>
+          Value (use {{field}} for a placeholder)
+          <input id="barcodeValueInput" type="text" placeholder="123456789012" />
+        </label>
+        <label>
+          Symbology
+          <select id="barcodeSymbologySelect">
+            <option value="code128">Code 128</option>
+            <option value="ean13">EAN-13</option>
+            <option value="upca">UPC-A</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button id="cancelBarcodeBtn" class="btn-white" style="color:#6b6880;">Cancel</button>
+          <button id="insertBarcodeBtn" class="btn-indigo">Insert</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="qrModal" class="modal-backdrop hidden">
+      <div class="modal">
+        <h3>Insert QR Code</h3>
+        <label>
+          Value (use {{field}} for a placeholder)
+          <input id="qrValueInput" type="text" placeholder="https://example.com" />
+        </label>
+        <label>
+          Error correction level
+          <select id="qrEccSelect">
+            <option value="L">L (low)</option>
+            <option value="M" selected>M (medium)</option>
+            <option value="Q">Q (quartile)</option>
+            <option value="H">H (high)</option>
+          </select>
+        </label>
+        <div class="actions">
+          <button id="cancelQrBtn" class="btn-white" style="color:#6b6880;">Cancel</button>
+          <button id="insertQrBtn" class="btn-indigo">Insert</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="saveDocModal" class="modal-backdrop hidden">
+      <div class="modal">
+        <h3>Save Document</h3>
+        <label>
+          Document name
+          <input id="saveDocNameInput" type="text" placeholder="my-labels" />
+        </label>
+        <div class="actions">
+          <button id="cancelSaveDocBtn" class="btn-white" style="color:#6b6880;">Cancel</button>
+          <button id="confirmSaveDocBtn" class="btn-orange">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="loadDocModal" class="modal-backdrop hidden">
+      <div class="modal">
+        <h3>Load Document</h3>
+        <div id="loadDocList" style="display:flex; flex-direction:column; gap:0.4rem; max-height:280px; overflow-y:auto;"></div>
+        <div class="actions">
+          <button id="cancelLoadDocBtn" class="btn-white" style="color:#6b6880;">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="contextMenu" class="hidden"></div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
