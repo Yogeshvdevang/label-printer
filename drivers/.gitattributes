@@ -1,0 +1,2 @@
+# Preserve vendor package bytes, including the signed INF file.
+4barcode/windows-x64/** -text
