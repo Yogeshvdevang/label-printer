@@ -1,6 +1,7 @@
 import { DesignerState, PAGE_PRESETS, type DesignDocument, type DesignPage } from './state.js'
 import { CanvasView, getElementData, UI_PX_PER_MM } from './canvasView.js'
 import type * as fabric from 'fabric'
+import { PRINTER_MEDIA, validateMedia } from '../../shared/media.js'
 
 interface PrinterInfo {
   Name: string
@@ -30,6 +31,19 @@ export function initDesigner(): void {
   const presetSelect = $<HTMLSelectElement>('presetSelect')
   const widthInput = $<HTMLInputElement>('widthInput')
   const heightInput = $<HTMLInputElement>('heightInput')
+  const mediaPrinter = $<HTMLSelectElement>('mediaPrinterSelect')
+  const mediaHelp = $('mediaHelp')
+  const mediaError = $('mediaError')
+  const mediaProfile = (): 'josh' | 'other' => mediaPrinter.value === 'other' ? 'other' : 'josh'
+  const updateMediaHelp = (): void => {
+    const preset = PAGE_PRESETS.find(p => p.id === presetSelect.value)
+    const profile = PRINTER_MEDIA[mediaProfile()]
+    mediaHelp.textContent = `${preset?.note ?? 'Canvas automatically uses the selected label dimensions. Normal, waterproof, silver and coloured stock share the same sizes.'} ${mediaProfile() === 'josh' ? 'Josh: up to 57 mm media, 48 mm printable width; keep content within the dashed centre guides on wider labels. Maximum roll diameter: 50 mm.' : ''} Roll dimensions must be selected or measured; USB does not detect the loaded roll size.`
+    mediaError.textContent = ''
+    widthInput.max = String(profile.maxWidthMm)
+    widthInput.disabled = preset?.id === 'jewellery-3up'
+    heightInput.disabled = preset?.id === 'jewellery-3up'
+  }
   let resizingPageId: string | null = null
 
   for (const preset of PAGE_PRESETS) {
@@ -44,9 +58,17 @@ export function initDesigner(): void {
       widthInput.value = String(preset.widthMm)
       heightInput.value = String(preset.defaultHeightMm)
     }
+    updateMediaHelp()
   }
   presetSelect.addEventListener('change', syncDefaultsFromPreset)
   syncDefaultsFromPreset()
+  mediaPrinter.addEventListener('change', updateMediaHelp)
+  for (const input of [widthInput, heightInput]) input.addEventListener('input', () => {
+    if (PAGE_PRESETS.find(p => p.id === presetSelect.value)?.shape === 'round') {
+      (input === widthInput ? heightInput : widthInput).value = input.value
+    }
+    updateMediaHelp()
+  })
 
   function openNewPageModal(): void {
     resizingPageId = null
@@ -60,9 +82,13 @@ export function initDesigner(): void {
     resizingPageId = page.id
     modalTitle.textContent = 'Resize Page'
     createPageBtn.textContent = 'Apply'
-    presetSelect.disabled = true
+    presetSelect.disabled = false
+    presetSelect.value = page.mediaPresetId ?? 'custom-label'
+    mediaPrinter.value = page.printerProfile ?? 'josh'
     widthInput.value = String(page.widthMm)
     heightInput.value = String(page.heightMm)
+    if (page.mediaPresetId === 'jewellery-3up') syncDefaultsFromPreset()
+    updateMediaHelp()
     modal.classList.remove('hidden')
   }
 
@@ -70,15 +96,20 @@ export function initDesigner(): void {
   $('cancelNewPageBtn').addEventListener('click', () => modal.classList.add('hidden'))
   createPageBtn.addEventListener('click', () => {
     const preset = PAGE_PRESETS.find((p) => p.id === presetSelect.value)!
-    const widthMm = Number(widthInput.value) || preset.widthMm
-    const heightMm = Number(heightInput.value) || preset.defaultHeightMm
+    const widthMm = Number(widthInput.value)
+    const heightMm = Number(heightInput.value)
+    const error = validateMedia(widthMm, heightMm, mediaProfile(), preset.shape === 'round')
+    if (error) { mediaError.textContent = error; return }
+    persistCurrentPage()
     modal.classList.add('hidden')
 
     if (resizingPageId) {
+      const page = state.document.pages.find(p => p.id === resizingPageId)!
+      Object.assign(page, { kind: preset.kind, mediaPresetId: preset.id, shape: preset.shape, printerProfile: mediaProfile() })
       state.resizePage(resizingPageId, widthMm, heightMm)
     } else {
-      persistCurrentPage()
-      state.addPage(preset.kind, widthMm, heightMm)
+      const page = state.addPage(preset.kind, widthMm, heightMm)
+      Object.assign(page, { mediaPresetId: preset.id, shape: preset.shape, printerProfile: mediaProfile() })
     }
     renderAll()
   })
@@ -98,7 +129,8 @@ export function initDesigner(): void {
       const thumbCanvas = document.createElement('canvas')
       el.appendChild(thumbCanvas)
       const label = document.createElement('div')
-      label.textContent = `${page.name} (${page.kind}, ${page.widthMm}x${page.heightMm}mm)`
+      const columns = PAGE_PRESETS.find(p => p.id === page.mediaPresetId)?.columns
+      label.textContent = `${page.name} (${page.kind}, ${page.widthMm}x${page.heightMm}mm${columns ? `, ${columns} tags across` : ''})`
       el.appendChild(label)
       const btnRow = document.createElement('div')
       btnRow.style.display = 'flex'
@@ -743,7 +775,7 @@ export function initDesigner(): void {
       opt.textContent = p.Name
       printerSelect.appendChild(opt)
     }
-    const preferred = printers.find((p) => p.Name === '4BARCODE 4B-2034PA')
+    const preferred = printers.find((p) => /DP27|Josh/i.test(p.Name)) ?? printers.find((p) => p.Name === '4BARCODE 4B-2034PA')
     if (preferred) printerSelect.value = preferred.Name
   }
   $('refreshPrintersBtn').addEventListener('click', () => {
@@ -761,6 +793,14 @@ export function initDesigner(): void {
       setStatus('No printer selected.')
       return
     }
+    if (/DP27|Josh/i.test(printerSelect.value)) {
+      const error = validateMedia(page.widthMm, page.heightMm, 'josh', page.shape === 'round')
+      if (error) { setStatus(error); return }
+    }
+    if (page.mediaPresetId === 'jewellery-3up' && (page.widthMm !== 45 || page.heightMm !== 100)) {
+      setStatus('Use Resize → SEZNIK jewellery to update this page to the dimension-diagram template (45 × 100 mm).')
+      return
+    }
     const { widthDots, heightDots, rgba } = view.rasterizeForPrint(page, DOTS_PER_MM)
     setStatus(`Printing "${page.name}" (${page.kind}) to "${printerSelect.value}"…`)
     try {
@@ -773,7 +813,7 @@ export function initDesigner(): void {
         rgba: Array.from(rgba),
         printerName: printerSelect.value
       })
-      setStatus(`Printed "${page.name}".`)
+      setStatus(`Sent "${page.name}" to "${printerSelect.value}". Check the printer for output.`)
     } catch (err) {
       setStatus(`Print error: ${(err as Error).message}`)
     }
@@ -796,7 +836,10 @@ export function initDesigner(): void {
   // ---- Init ----
   refreshPrinters().catch((err) => setStatus(`Error: ${err.message}`))
   if (state.document.pages.length === 0) {
-    state.addPage('label', 76, 130)
+    const jewellery = new URLSearchParams(window.location.search).get('media') === 'jewellery-3up'
+    const page = state.addPage('label', jewellery ? 45 : 50, jewellery ? 100 : 30)
+    Object.assign(page, { mediaPresetId: jewellery ? 'jewellery-3up' : 'label-50x30', printerProfile: 'josh' })
+    if (jewellery) setStatus('Jewellery row: 3 tags across · two 32 mm faces per tag · 36 mm non-printing attachment tail. One page prints one row of three tags.')
   }
   renderAll()
 }

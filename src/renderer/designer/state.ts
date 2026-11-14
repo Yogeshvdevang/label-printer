@@ -1,3 +1,4 @@
+export { PAGE_PRESETS } from '../../shared/media.js'
 export type PageKind = 'label' | 'receipt'
 
 export interface PageElementData {
@@ -21,6 +22,9 @@ export interface DesignPage {
   kind: PageKind
   widthMm: number
   heightMm: number
+  mediaPresetId?: string
+  shape?: 'rectangle' | 'round'
+  printerProfile?: 'josh' | 'other'
   /** Serialized Fabric.js canvas state for this page (fabric Canvas#toJSON output). */
   fabricJSON?: object
 }
@@ -31,14 +35,6 @@ export interface DesignDocument {
   pages: DesignPage[]
 }
 
-export const PAGE_PRESETS: { id: string; label: string; kind: PageKind; widthMm: number; defaultHeightMm: number }[] = [
-  // Roll is 76mm (3x5in HIROBOT). Defaults to the full roll width; note the
-  // print head only confirmed-prints ~72mm of it (see printer_setup memory)
-  // — width is editable in the New Page dialog if you want to set it to 72
-  // to guarantee nothing gets clipped.
-  { id: 'label-76', label: 'Label (76mm roll — printable area confirmed to ~72mm)', kind: 'label', widthMm: 76, defaultHeightMm: 130 },
-  { id: 'receipt-80', label: 'Receipt (80mm wide, continuous roll)', kind: 'receipt', widthMm: 80, defaultHeightMm: 150 }
-]
 
 function makeId(): string {
   return Math.random().toString(36).slice(2, 10)
@@ -97,6 +93,9 @@ export class DesignerState {
       kind: source.kind,
       widthMm: source.widthMm,
       heightMm: source.heightMm,
+      mediaPresetId: source.mediaPresetId,
+      shape: source.shape,
+      printerProfile: source.printerProfile,
       fabricJSON: clonedJSON
     }
     const idx = this.document.pages.findIndex((p) => p.id === pageId)

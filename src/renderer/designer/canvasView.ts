@@ -2,6 +2,7 @@ import * as fabric from 'fabric'
 import bwipjs from 'bwip-js/browser'
 import type { DesignPage, PageElementData } from './state.js'
 import { makeElementId } from './state.js'
+import { mediaColumns, jewelleryPanels, JEWELLERY } from '../../shared/media.js'
 
 /** On-screen editing zoom: comfortable pixel density, independent of print DPI. */
 export const UI_PX_PER_MM = 4
@@ -14,6 +15,8 @@ export function getElementData(obj: fabric.FabricObject): PageElementData | unde
 export class CanvasView {
   readonly canvas: fabric.Canvas
   private clipboard: fabric.FabricObject | null = null
+  private columnWidthPx: number | undefined
+  private jewelleryPage = false
 
   constructor(canvasEl: HTMLCanvasElement) {
     this.canvas = new fabric.Canvas(canvasEl, {
@@ -45,6 +48,56 @@ export class CanvasView {
     if (page.fabricJSON) {
       await this.canvas.loadFromJSON(page.fabricJSON)
     }
+    this.canvas.clipPath = page.shape === 'round' ? new fabric.Circle({
+      radius: page.widthMm * UI_PX_PER_MM / 2,
+      left: 0, top: 0, absolutePositioned: true
+    }) : undefined
+    const columns = mediaColumns(page.mediaPresetId, page.widthMm)
+    this.jewelleryPage = page.mediaPresetId === 'jewellery-3up'
+    this.columnWidthPx = columns.length > 1 ? columns[0].widthMm * UI_PX_PER_MM : undefined
+    if (this.jewelleryPage) {
+      const panels = jewelleryPanels(page.widthMm)
+      for (const panel of panels) {
+        const outline = new fabric.Rect({
+          left: panel.leftMm * UI_PX_PER_MM, top: 0, originX: 'left', originY: 'top',
+          width: panel.widthMm * UI_PX_PER_MM, height: JEWELLERY.bodyLengthMm * UI_PX_PER_MM,
+          fill: 'transparent', stroke: '#7c3aed', strokeWidth: 1,
+          selectable: false, evented: false, excludeFromExport: true
+        })
+        ;(outline as unknown as { data: object }).data = { type: 'refline', id: 'jewellery-body' }
+        this.canvas.add(outline)
+        for (const y of [JEWELLERY.faceLengthMm, JEWELLERY.bodyLengthMm]) {
+          const guide = new fabric.Line([panel.leftMm * UI_PX_PER_MM, y * UI_PX_PER_MM,
+            (panel.leftMm + panel.widthMm) * UI_PX_PER_MM, y * UI_PX_PER_MM], {
+            stroke: '#7c3aed', strokeWidth: 1, strokeDashArray: [4, 4],
+            selectable: false, evented: false, excludeFromExport: true
+          })
+          ;(guide as unknown as { data: object }).data = { type: 'refline', id: 'jewellery-fold' }
+          this.canvas.add(guide)
+        }
+      }
+    }
+    for (const column of columns.slice(1)) {
+      const x = column.leftMm * UI_PX_PER_MM
+      const guide = new fabric.Line([x, 0, x, page.heightMm * UI_PX_PER_MM], {
+        stroke: '#7c3aed', strokeWidth: 1, strokeDashArray: [4, 4],
+        selectable: false, evented: false, excludeFromExport: true
+      })
+      ;(guide as unknown as { data: object }).data = { type: 'refline', id: 'tag-column' }
+      this.canvas.add(guide)
+    }
+    // Reference lines are hidden by the existing print/thumbnail pipeline.
+    if (page.printerProfile === 'josh' && page.widthMm > 48) {
+      const margin = (page.widthMm - 48) / 2 * UI_PX_PER_MM
+      for (const x of [margin, page.widthMm * UI_PX_PER_MM - margin]) {
+        const guide = new fabric.Line([x, 0, x, page.heightMm * UI_PX_PER_MM], {
+          stroke: '#d97706', strokeWidth: 1, strokeDashArray: [5, 4],
+          selectable: false, evented: false, excludeFromExport: true
+        })
+        ;(guide as unknown as { data: object }).data = { type: 'refline', id: 'printable-edge' }
+        this.canvas.add(guide)
+      }
+    }
     this.canvas.requestRenderAll()
   }
 
@@ -55,10 +108,12 @@ export class CanvasView {
 
   addText(text = 'Text'): void {
     const box = new fabric.Textbox(text, {
-      left: 10,
-      top: 10,
-      width: 100,
-      fontSize: 16,
+      left: this.jewelleryPage ? ((this.columnWidthPx! / UI_PX_PER_MM - JEWELLERY.tagWidthMm) / 2 + JEWELLERY.tagWidthMm - 1) * UI_PX_PER_MM : this.columnWidthPx ? 4 : 10,
+      top: this.jewelleryPage ? 4 : 10,
+      angle: this.jewelleryPage ? 90 : 0,
+      originX: 'left', originY: 'top',
+      width: this.jewelleryPage ? (JEWELLERY.faceLengthMm - 2) * UI_PX_PER_MM : this.columnWidthPx ? this.columnWidthPx - 8 : 100,
+      fontSize: this.columnWidthPx ? 12 : 16,
       data: { id: makeElementId(), type: 'text' } satisfies PageElementData
     })
     this.canvas.add(box)
@@ -492,6 +547,17 @@ export class CanvasView {
       const highResCanvas = this.canvas.toCanvasElement(multiplier)
       const ctx = highResCanvas.getContext('2d')!
       const imageData = ctx.getImageData(0, 0, widthDots, heightDots)
+      if (page.mediaPresetId === 'jewellery-3up') {
+        const panels = jewelleryPanels(page.widthMm)
+        for (let y = 0; y < heightDots; y++) for (let x = 0; x < widthDots; x++) {
+          const xMm = (x + 0.5) / dotsPerMm
+          if (y / dotsPerMm >= JEWELLERY.bodyLengthMm || !panels.some(p => xMm >= p.leftMm && xMm < p.leftMm + p.widthMm)) {
+            const i = (y * widthDots + x) * 4
+            imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = 255
+            imageData.data[i + 3] = 255
+          }
+        }
+      }
       return { widthDots, heightDots, rgba: imageData.data }
     })
   }

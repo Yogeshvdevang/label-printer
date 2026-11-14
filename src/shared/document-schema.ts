@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PAGE_PRESETS as MEDIA_PRESETS } from './media.js'
 
 /**
  * A "document" is a Canva-style multi-page file. Each page is either a
@@ -86,9 +87,5 @@ export const LabelDocument = z.object({
 })
 export type LabelDocument = z.infer<typeof LabelDocument>
 
-/** Starting page-size presets, derived from the physical rolls in hand. */
-export const PAGE_PRESETS = [
-  // Roll is 76mm (3x5in HIROBOT), but only ~72mm is physically printable — see printer_setup memory.
-  { id: 'label-76x130', label: 'Label (76mm roll, 72mm printable) x 130mm', kind: 'label' as const, widthMm: 72, heightMm: 130 },
-  { id: 'receipt-80', label: 'Receipt 80mm wide (continuous roll)', kind: 'receipt' as const, widthMm: 80, heightMm: 150 }
-]
+/** Shared roll catalogue, also used by the designer. */
+export const PAGE_PRESETS = MEDIA_PRESETS.map(preset => ({ ...preset, heightMm: preset.defaultHeightMm }))

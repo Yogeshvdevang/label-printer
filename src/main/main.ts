@@ -3,9 +3,11 @@ import { join } from 'node:path'
 import { mkdir, readFile, writeFile, readdir, unlink } from 'node:fs/promises'
 import { listPrinters, sendTestPage, printRasterizedPage, resolveRawPrintScript } from '../print-engine/index.js'
 import type { PrintPageParams } from '../print-engine/printPage.js'
+import { printWithWindowsDriver } from '../print-engine/windows/driverPrint.js'
 
 function createMainWindow(): void {
   const win = new BrowserWindow({
+    title: 'Label Printer — 0.1.3',
     width: 1200,
     height: 800,
     webPreferences: {
@@ -14,11 +16,14 @@ function createMainWindow(): void {
       nodeIntegration: false
     }
   })
+  win.on('page-title-updated', event => event.preventDefault())
 
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'), {
+      query: process.argv.includes('--jewellery') ? { media: 'jewellery-3up' } : {}
+    })
   }
 }
 
@@ -32,6 +37,12 @@ ipcMain.handle('printers:sendTest', async (_event, printerName: string) => {
 })
 
 ipcMain.handle('printers:printPage', async (_event, params: PrintPageParams) => {
+  const printer = (await listPrinters()).find(p => p.Name === params.printerName)
+  if (!printer) throw new Error('Selected printer is unavailable. Refresh the printer list.')
+  if (/DP27|Josh/i.test(`${printer.Name} ${printer.DriverName}`)) {
+    await printWithWindowsDriver({ ...params, rgba: new Uint8Array(params.rgba) })
+    return { ok: true }
+  }
   await printRasterizedPage(
     { ...params, rgba: new Uint8Array(params.rgba) },
     resolveRawPrintScript()

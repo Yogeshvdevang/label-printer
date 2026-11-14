@@ -219,6 +219,7 @@
       .modal {
         background: white; padding: 1.75rem; border-radius: 18px;
         width: 380px; display: flex; flex-direction: column; gap: 1rem;
+        max-height: calc(100vh - 5rem); overflow-y: auto;
         box-shadow: 0 20px 50px rgba(31,32,51,0.35);
       }
       .modal h3 {
@@ -325,19 +326,23 @@
     <div id="newPageModal" class="modal-backdrop hidden">
       <div class="modal">
         <h3 id="newPageModalTitle">New Page</h3>
+        <label>Printer
+          <select id="mediaPrinterSelect"><option value="josh">SEZNIK Josh / DeTong DP27 (203 dpi)</option><option value="other">Other printer</option></select>
+        </label>
         <label>
-          Paper type (sets the default width — adjust it below if needed)
+          Roll size and shape
           <select id="presetSelect"></select>
         </label>
         <label>
-          Width (mm) — defaults to the roll width; the confirmed printable
-          area on the 76mm roll is ~72mm, so use 72 to avoid clipping
-          <input id="widthInput" type="number" min="5" step="1" />
+          Label width across the roll (mm)
+          <input id="widthInput" type="number" min="5" max="300" step="0.1" />
         </label>
         <label>
           Height (mm) — length of this page
-          <input id="heightInput" type="number" min="5" step="1" />
+          <input id="heightInput" type="number" min="5" max="2000" step="0.1" />
         </label>
+        <p id="mediaHelp" style="font-size:0.85rem;line-height:1.5" aria-live="polite"></p>
+        <p id="mediaError" style="color:#b42318" role="alert"></p>
         <div class="actions">
           <button id="cancelNewPageBtn" class="btn-white" style="color:#6b6880;">Cancel</button>
           <button id="createPageBtn" class="btn-pink">Create</button>
